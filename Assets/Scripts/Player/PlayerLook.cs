@@ -35,9 +35,18 @@ public class PlayerLook : MonoBehaviour
 
     [SerializeField] bool invertY;
 
+    [SerializeField, Range(0.1f, 1f), Tooltip("Look speed while the gun is raised.")]
+    float aimSensitivityMultiplier = 0.75f;
+
     [Header("Quick Turn")]
     [SerializeField] float quickTurnDuration = 0.35f;
     [SerializeField] float backwardThreshold = 0.5f;
+
+    [Header("Recoil")]
+    [SerializeField, Tooltip("How fast the view snaps up to a new kick.")]
+    float recoilSnap = 30f;
+    [SerializeField, Tooltip("How fast the view settles back after a kick.")]
+    float recoilReturn = 6f;
 
     PlayerMovement movement;
     float yaw;
@@ -50,8 +59,16 @@ public class PlayerLook : MonoBehaviour
     float turnStartYaw;
     float turnElapsed;
     Vector2 previousMove;
+    Vector2 recoilTarget;
+    Vector2 recoil;
 
     public bool IsQuickTurning => turning;
+
+    /// <summary>Kicks the view up and sideways by the given degrees. It settles back on its own.</summary>
+    public void AddRecoil(float pitchUp, float yaw)
+    {
+        recoilTarget += new Vector2(pitchUp, yaw);
+    }
 
     void Awake()
     {
@@ -96,6 +113,10 @@ public class PlayerLook : MonoBehaviour
         else if (!TryStartQuickTurn())
             ApplyLook();
 
+        float dt = Time.deltaTime;
+        recoilTarget = Vector2.Lerp(recoilTarget, Vector2.zero, 1f - Mathf.Exp(-recoilReturn * dt));
+        recoil = Vector2.Lerp(recoil, recoilTarget, 1f - Mathf.Exp(-recoilSnap * dt));
+
         ApplyRotation();
         previousMove = ReadMove();
     }
@@ -116,6 +137,8 @@ public class PlayerLook : MonoBehaviour
             : null;
         bool stick = device is Gamepad || device is Joystick;
         float scale = stick ? stickLookSpeed * Time.deltaTime : mouseSensitivity;
+        if (movement != null && movement.IsAiming)
+            scale *= aimSensitivityMultiplier;
         float pitchSign = invertY ? 1f : -1f;
 
         targetYaw += look.x * scale;
@@ -124,7 +147,7 @@ public class PlayerLook : MonoBehaviour
 
     bool TryStartQuickTurn()
     {
-        if (movement != null && (!movement.IsGrounded || movement.IsCrouching))
+        if (movement != null && (!movement.IsGrounded || movement.IsCrouching || movement.IsAiming))
             return false;
 
         Vector2 move = ReadMove();
@@ -171,9 +194,12 @@ public class PlayerLook : MonoBehaviour
             pitch = Mathf.SmoothDamp(pitch, targetPitch, ref pitchSmoothVelocity, lookSmoothTime);
         }
 
-        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        transform.rotation = Quaternion.Euler(0f, yaw + recoil.y, 0f);
         if (cameraRoot != null)
-            cameraRoot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+        {
+            float kickedPitch = Mathf.Clamp(pitch - recoil.x, -pitchLimit, pitchLimit);
+            cameraRoot.localRotation = Quaternion.Euler(kickedPitch, 0f, 0f);
+        }
     }
 
     Vector2 ReadMove()

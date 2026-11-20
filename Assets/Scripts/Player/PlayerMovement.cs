@@ -26,6 +26,8 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] float walkSpeed = 2f;
     [SerializeField] float sprintSpeed = 3.6f;
     [SerializeField] float crouchSpeed = 1.1f;
+    [SerializeField, Tooltip("Top speed while the gun is raised.")]
+    float aimSpeed = 1.1f;
     [SerializeField] float backwardMultiplier = 0.7f;
     [SerializeField] float strafeMultiplier = 0.85f;
     [SerializeField] float acceleration = 10f;
@@ -58,6 +60,9 @@ public class PlayerMovement : MonoBehaviour
     public bool IsSprinting => sprinting;
     public bool IsCrouching => crouching;
     public bool IsQuickTurning => look != null && look.IsQuickTurning;
+
+    /// <summary>Set by the weapon while the gun is raised. Slows walking and blocks sprint and quick turn.</summary>
+    public bool IsAiming { get; set; }
 
     void Awake()
     {
@@ -94,11 +99,14 @@ public class PlayerMovement : MonoBehaviour
         bool holdingSprint = IsPressed(sprintAction);
         sprinting = !crouching
             && !quickTurning
+            && !IsAiming
             && holdingSprint
             && move.y > 0.1f
             && move.y >= Mathf.Abs(move.x);
 
         float speed = crouching ? crouchSpeed : sprinting ? sprintSpeed : walkSpeed;
+        if (IsAiming)
+            speed = Mathf.Min(speed, aimSpeed);
         Vector3 wish = transform.right * move.x + transform.forward * move.y;
         float inputAmount = Mathf.Clamp01(wish.magnitude);
         if (inputAmount > 0.0001f)
