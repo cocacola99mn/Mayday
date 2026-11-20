@@ -32,7 +32,7 @@ Material:
     - _CanvasScale: 2
     - _CanvasStrength: 0.25
     - _Radius: 2
-    - _Spacing: 1.5
+    - _Spacing: 2
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1
